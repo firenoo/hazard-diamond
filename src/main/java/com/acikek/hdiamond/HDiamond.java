@@ -1,34 +1,41 @@
 package com.acikek.hdiamond;
 
-import com.acikek.hdiamond.command.HDiamondCommand;
-import com.acikek.hdiamond.core.HazardData;
-import com.acikek.hdiamond.entity.PanelEntity;
-import com.acikek.hdiamond.item.PanelItem;
-import com.acikek.hdiamond.load.HazardDataLoader;
-import com.acikek.hdiamond.network.HDNetworking;
-import net.fabricmc.api.ModInitializer;
-import net.minecraft.util.Identifier;
+import com.myname.mymodid.Tags;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-public class HDiamond implements ModInitializer {
+import cpw.mods.fml.common.Mod;
+import cpw.mods.fml.common.SidedProxy;
+import cpw.mods.fml.common.event.FMLInitializationEvent;
+import cpw.mods.fml.common.event.FMLPostInitializationEvent;
+import cpw.mods.fml.common.event.FMLPreInitializationEvent;
+import cpw.mods.fml.common.event.FMLServerStartingEvent;
 
-    public static final String ID = "hdiamond";
+@Mod(modid = Tags.MODID, version = Tags.VERSION, name = Tags.MODNAME, acceptedMinecraftVersions = "[1.7.10]")
+public class HDiamond {
 
-    public static final Logger LOGGER = LogManager.getLogger(ID);
+    public static final Logger LOG = LogManager.getLogger(Tags.MODID);
 
-    public static Identifier id(String path) {
-        return new Identifier(ID, path);
+    @SidedProxy(clientSide = "com.acikek.hdiamond.ClientProxy", serverSide = "com.acikek.hdiamond.CommonProxy")
+    public static CommonProxy proxy;
+
+    @Mod.EventHandler
+    public void preInit(FMLPreInitializationEvent event) {
+        proxy.preInit(event);
     }
 
-    @Override
-    public void onInitialize() {
-        HazardData.register();
-        PanelEntity.register();
-        PanelItem.register();
-        HDNetworking.register();
-        HDiamondCommand.register();
-        HazardDataLoader.register();
-        LOGGER.info("Hazard Diamond: NFPA 704 and GHS ID standards");
+    @Mod.EventHandler
+    public void init(FMLInitializationEvent event) {
+        proxy.init(event);
+    }
+
+    @Mod.EventHandler
+    public void postInit(FMLPostInitializationEvent event) {
+        proxy.postInit(event);
+    }
+
+    @Mod.EventHandler
+    public void serverStarting(FMLServerStartingEvent event) {
+        proxy.serverStarting(event);
     }
 }

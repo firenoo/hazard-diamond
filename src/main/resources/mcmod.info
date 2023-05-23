@@ -1,0 +1,18 @@
+[
+    {
+        "modid":"${modId}",
+        "name":"${modName}",
+        "description":"Implements the NFPA 704 and GHS identification standards in Minecraft",
+        "version":"${modVersion}",
+        "mcversion":"${minecraftVersion}",
+        "url":"https://github.com/firenoo/hazard-diamond",
+        "updateUrl":"",
+        "authorList":[
+            "acikek",
+            "VirtuaLilith"
+        ],
+        "credits":"acikek & VirtuaLilith",
+        "logoFile":"assets/hdiamond/icon.png",
+        "screenshots":[]
+    }
+]

@@ -4,11 +4,9 @@ import com.acikek.hdiamond.core.section.QuadrantSection;
 
 public class QuadrantValue<E extends Enum<E> & QuadrantSection<E>> {
 
-    private final Class<E> enumClass;
     private E value;
 
-    public QuadrantValue(Class<E> enumClass, E value) {
-        this.enumClass = enumClass;
+    public QuadrantValue(E value) {
         this.value = value;
     }
 
@@ -17,9 +15,7 @@ public class QuadrantValue<E extends Enum<E> & QuadrantSection<E>> {
     }
 
     public E scroll() {
-        int index = value.ordinal();
-        E[] values = enumClass.getEnumConstants();
-        value = index == values.length - 1 ? values[0] : values[index + 1];
+        this.value = value.scroll(false);
         return value;
     }
 
@@ -45,7 +41,7 @@ public class QuadrantValue<E extends Enum<E> & QuadrantSection<E>> {
     }
 
     public QuadrantValue<E> copy() {
-        return new QuadrantValue<>(enumClass, value);
+        return new QuadrantValue<>(value);
     }
 
     @Override

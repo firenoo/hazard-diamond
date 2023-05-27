@@ -1,7 +1,7 @@
 package com.acikek.hdiamond.core.quadrant;
 
 import com.acikek.hdiamond.core.section.QuadrantSection;
-import net.minecraft.util.Formatting;
+import net.minecraft.util.EnumChatFormatting;
 
 /**
  * Describes the type of possible injury while handling materials.<br>
@@ -45,7 +45,12 @@ public enum HealthHazard implements QuadrantSection<HealthHazard> {
     }
 
     @Override
-    public Formatting getTypeColor() {
-        return Formatting.BLUE;
+    public EnumChatFormatting getTypeColor() {
+        return EnumChatFormatting.BLUE;
+    }
+
+    @Override
+    public HealthHazard scroll(boolean reverse) {
+        return null;
     }
 }

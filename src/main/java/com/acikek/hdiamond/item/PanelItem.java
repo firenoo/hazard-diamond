@@ -2,85 +2,68 @@ package com.acikek.hdiamond.item;
 
 import com.acikek.hdiamond.HDiamond;
 import com.acikek.hdiamond.core.HazardData;
-import com.acikek.hdiamond.core.quadrant.SpecificHazard;
 import com.acikek.hdiamond.entity.PanelEntity;
-import net.fabricmc.fabric.api.item.v1.FabricItemSettings;
-import net.minecraft.client.item.TooltipContext;
-import net.minecraft.entity.EntityType;
-import net.minecraft.entity.player.PlayerEntity;
+import com.myname.mymodid.Tags;
+import cpw.mods.fml.common.registry.GameRegistry;
+import net.minecraft.block.Block;
+import net.minecraft.client.renderer.texture.IIconRegister;
+import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.item.Item;
-import net.minecraft.item.ItemGroup;
 import net.minecraft.item.ItemStack;
-import net.minecraft.item.ItemUsageContext;
-import net.minecraft.nbt.NbtCompound;
-import net.minecraft.text.Text;
-import net.minecraft.util.ActionResult;
-import net.minecraft.util.Formatting;
-import net.minecraft.util.math.BlockPos;
-import net.minecraft.util.math.Direction;
-import net.minecraft.util.registry.Registry;
+import net.minecraft.nbt.NBTTagCompound;
+import net.minecraft.util.Vec3;
 import net.minecraft.world.World;
-import net.minecraft.world.event.GameEvent;
-import org.jetbrains.annotations.Nullable;
+import net.minecraftforge.common.util.Constants;
+import net.minecraftforge.common.util.ForgeDirection;
 
 import java.util.List;
 
 public class PanelItem extends Item {
 
-    public static final PanelItem INSTANCE = new PanelItem(new FabricItemSettings().group(ItemGroup.DECORATIONS));
+    private static final PanelItem INSTANCE = new PanelItem();
 
-    public PanelItem(Settings settings) {
-        super(settings);
+    public PanelItem() {
+        setUnlocalizedName(Tags.MODID + ".panel_item");
+        setHasSubtypes(false);
+        setMaxDamage(0);
     }
 
     @Override
-    public ActionResult useOnBlock(ItemUsageContext context) {
-        World world = context.getWorld();
-        PlayerEntity player = context.getPlayer();
-        BlockPos offset = context.getBlockPos().offset(context.getSide());
-        if (player != null && !canPlaceOn(player, context.getSide(), context.getStack(), offset)) {
-            return ActionResult.FAIL;
+    public boolean onItemUse(ItemStack stack, EntityPlayer player, World world, int xPos, int yPos, int zPos, int side, float hx, float hy, float hz) {
+        ForgeDirection dir = ForgeDirection.getOrientation(side);
+        if (dir == ForgeDirection.DOWN || dir == ForgeDirection.UP) {
+            return false;
         }
-        var panelEntity = new PanelEntity(world, offset, context.getSide());
-        NbtCompound nbt = context.getStack().getNbt();
-        if (nbt != null) {
-            EntityType.loadFromEntityNbt(world, player, panelEntity, nbt);
-            if (nbt.contains("HazardData")) {
-                var data = HazardData.fromNbt(nbt.getCompound("HazardData"));
-                panelEntity.getDataTracker().set(PanelEntity.HAZARD_DATA, data);
+        if (!player.canPlayerEdit(xPos, yPos, zPos, side, stack)) {
+            return false;
+        } else {
+            // Finally, we can create the entity after RIGOROUS checks. Logic from ItemHangingEntity
+            PanelEntity entity = new PanelEntity(world, xPos, yPos, zPos, dir.ordinal());
+            if (!world.isRemote && entity.onValidSurface()) {
+                world.spawnEntityInWorld(entity);
             }
+            return true;
         }
-        if (!panelEntity.canStayAttached()) {
-            return ActionResult.CONSUME;
-        }
-        if (!world.isClient()) {
-            panelEntity.onPlace();
-            world.emitGameEvent(player, GameEvent.ENTITY_PLACE, panelEntity.getBlockPos());
-            world.spawnEntity(panelEntity);
-        }
-        if (player != null && !player.isCreative()) {
-            context.getStack().decrement(1);
-        }
-        return ActionResult.success(world.isClient());
-    }
-
-    public boolean canPlaceOn(PlayerEntity player, Direction side, ItemStack stack, BlockPos pos) {
-        return !side.getAxis().isVertical() && player.canPlaceOn(pos, side, stack);
     }
 
     @Override
-    public void appendTooltip(ItemStack stack, @Nullable World world, List<Text> tooltip, TooltipContext context) {
-        if (stack.hasNbt()) {
-            var nbt = stack.getOrCreateNbt();
-            if (nbt.contains("HazardData")) {
-                var data = HazardData.fromNbt(nbt.getCompound("HazardData"));
+    public void addInformation(ItemStack stack, EntityPlayer player, List tooltip, boolean show) {
+        if (stack.hasTagCompound()) {
+            NBTTagCompound nbt = stack.getTagCompound();
+            if (nbt.hasKey("HazardData", Constants.NBT.TAG_COMPOUND)) {
+                var data = HazardData.fromNbt(nbt.getCompoundTag("HazardData"));
                 tooltip.addAll(data.getTooltip());
             }
         }
-        super.appendTooltip(stack, world, tooltip, context);
+        super.addInformation(stack, player, tooltip, show);
     }
 
     public static void register() {
-        Registry.register(Registry.ITEM, HDiamond.id("panel_item"), INSTANCE);
+        GameRegistry.registerItem(INSTANCE, "panel_item", Tags.MODID);
+    }
+
+    @Override
+    public void registerIcons(IIconRegister register) {
+        this.itemIcon = register.registerIcon(Tags.MODID + ":panel_item");
     }
 }

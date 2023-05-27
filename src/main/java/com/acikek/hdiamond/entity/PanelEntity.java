@@ -2,93 +2,55 @@ package com.acikek.hdiamond.entity;
 
 import com.acikek.hdiamond.HDiamond;
 import com.acikek.hdiamond.api.util.HazardDataHolder;
-import com.acikek.hdiamond.client.screen.HazardScreen;
 import com.acikek.hdiamond.core.HazardData;
-import com.acikek.hdiamond.item.PanelItem;
-import net.fabricmc.api.EnvType;
-import net.fabricmc.api.Environment;
-import net.fabricmc.fabric.api.object.builder.v1.entity.FabricEntityTypeBuilder;
-import net.minecraft.advancement.criterion.Criteria;
-import net.minecraft.block.AbstractRedstoneGateBlock;
-import net.minecraft.block.BlockState;
-import net.minecraft.client.MinecraftClient;
+import com.acikek.hdiamond.network.NetHandler;
+import com.acikek.hdiamond.network.S2COpenGui;
 import net.minecraft.entity.Entity;
-import net.minecraft.entity.EntityDimensions;
-import net.minecraft.entity.EntityType;
-import net.minecraft.entity.SpawnGroup;
-import net.minecraft.entity.data.DataTracker;
-import net.minecraft.entity.data.TrackedData;
-import net.minecraft.entity.data.TrackedDataHandlerRegistry;
-import net.minecraft.entity.decoration.AbstractDecorationEntity;
-import net.minecraft.entity.player.PlayerEntity;
+import net.minecraft.entity.EntityHanging;
+import net.minecraft.entity.player.EntityPlayer;
+import net.minecraft.init.Items;
 import net.minecraft.item.ItemStack;
-import net.minecraft.item.Items;
-import net.minecraft.nbt.NbtCompound;
-import net.minecraft.network.Packet;
-import net.minecraft.network.packet.s2c.play.EntitySpawnS2CPacket;
-import net.minecraft.server.network.ServerPlayerEntity;
-import net.minecraft.sound.SoundEvents;
-import net.minecraft.util.ActionResult;
-import net.minecraft.util.Hand;
-import net.minecraft.util.math.BlockPos;
-import net.minecraft.util.math.Direction;
-import net.minecraft.util.registry.Registry;
-import net.minecraft.world.GameRules;
+import net.minecraft.nbt.NBTTagCompound;
 import net.minecraft.world.World;
-import org.jetbrains.annotations.NotNull;
-import org.jetbrains.annotations.Nullable;
+import net.minecraftforge.common.util.ForgeDirection;
 
-public class PanelEntity extends AbstractDecorationEntity implements HazardDataHolder {
+public class PanelEntity extends EntityHanging implements HazardDataHolder {
 
-    public static EntityType<PanelEntity> ENTITY_TYPE;
+    private boolean isEditable;
 
-    public static final TrackedData<Boolean> WAXED = DataTracker.registerData(PanelEntity.class, TrackedDataHandlerRegistry.BOOLEAN);
-    public static final TrackedData<HazardData> HAZARD_DATA = DataTracker.registerData(PanelEntity.class, HazardData.DATA_TRACKER);
-
-    public PanelEntity(EntityType<PanelEntity> entityType, World world) {
-        super(entityType, world);
+    public PanelEntity(World world) {
+        super(world);
     }
 
-    public PanelEntity(World world, BlockPos pos, Direction direction) {
-        super(ENTITY_TYPE, world, pos);
-        setFacing(direction);
-        setPosition(pos.getX(), pos.getY(), pos.getZ());
+    public PanelEntity(World world, int xPos, int yPos, int zPos, int side) {
+        super(world, xPos, yPos, zPos, side);
+        setDirection(side);
+        this.isEditable = true;
     }
 
     @Override
-    protected void initDataTracker() {
-        getDataTracker().startTracking(WAXED, false);
-        getDataTracker().startTracking(HAZARD_DATA, HazardData.empty());
-    }
-
-    @Environment(EnvType.CLIENT)
-    public void openScreen() {
-        MinecraftClient.getInstance().setScreen(new HazardScreen(this));
+    protected void entityInit() {
+        HazardData.initDataWatcher(getDataWatcher());
+        getDataWatcher().addObject(7, 0);
     }
 
     @Override
-    public ActionResult interact(PlayerEntity player, Hand hand) {
-        if (hand != Hand.MAIN_HAND) {
-            return ActionResult.PASS;
-        }
-        ItemStack stack = player.getStackInHand(hand);
-        if (player.isSneaking() && stack.isOf(Items.HONEYCOMB)) {
-            if (isWaxed()) {
-                return ActionResult.FAIL;
+    public boolean interactFirst(EntityPlayer player) {
+        ItemStack stack = player.getHeldItem();
+        if (player.isSneaking() && stack.getItem() == Items.slime_ball) {
+            if (isEditable) {
+                return false;
             }
-            if (!player.isCreative()) {
-                stack.decrement(1);
+            if (!player.capabilities.isCreativeMode) {
+                stack.stackSize -= 1;
             }
-            if (player instanceof ServerPlayerEntity serverPlayer) {
-                Criteria.ITEM_USED_ON_BLOCK.trigger(serverPlayer, getBlockPos(), stack);
-            }
-            playSound(SoundEvents.ITEM_HONEYCOMB_WAX_ON, 1.0f, 1.0f);
-            getDataTracker().set(WAXED, true);
+            playSound("mob.slime.small", 1.0f, 1.0f);
+            getDataWatcher().updateObject(7, 1);
+            getDataWatcher().setObjectWatched(7);
+        } else if (!player.worldObj.isRemote) {
+            NetHandler.sendToPlayer(new S2COpenGui(getHazardData(ForgeDirection.UNKNOWN), isEditable), player);
         }
-        else if (world.isClient()) {
-            openScreen();
-        }
-        return ActionResult.success(world.isClient());
+        return player.worldObj.isRemote;
     }
 
     @Override
@@ -102,92 +64,38 @@ public class PanelEntity extends AbstractDecorationEntity implements HazardDataH
     }
 
     @Override
-    public void onBreak(@Nullable Entity entity) {
-        if (!world.getGameRules().getBoolean(GameRules.DO_ENTITY_DROPS)) {
-            return;
-        }
-        dropStack(getPickBlockStack());
-        playSound(SoundEvents.ENTITY_PAINTING_BREAK, 1.0f, 1.0f);
+    public void onBroken(Entity p_110128_1_) {
+
     }
 
     @Override
-    public void onPlace() {
-        playSound(SoundEvents.BLOCK_NETHERITE_BLOCK_PLACE, 1.0f, 1.0f);
+    public HazardData getHazardData(ForgeDirection dir) {
+        return HazardData.readDataWatcher(getDataWatcher());
     }
 
     @Override
-    public Packet<?> createSpawnPacket() {
-        return new EntitySpawnS2CPacket(this, facing.getId(), getDecorationBlockPos());
+    public boolean isEditable(ForgeDirection dir) {
+        return false;
     }
 
     @Override
-    public void onSpawnPacket(EntitySpawnS2CPacket packet) {
-        super.onSpawnPacket(packet);
-        setFacing(Direction.byId(packet.getEntityData()));
-    }
+    public void setHazardData(HazardData data, ForgeDirection dir) {
+        if (isEditable(dir)) {
 
-    @Override
-    public boolean canStayAttached() {
-        if (!world.isSpaceEmpty(this)) {
-            return false;
-        }
-        BlockState blockState = world.getBlockState(attachmentPos.offset(facing.getOpposite()));
-        return blockState.getMaterial().isSolid() || facing.getAxis().isHorizontal() && AbstractRedstoneGateBlock.isRedstoneGate(blockState);
-    }
-
-    public boolean isWaxed() {
-        return getDataTracker().get(WAXED);
-    }
-
-    @Override
-    public @NotNull HazardData getHazardData() {
-        return getDataTracker().get(HAZARD_DATA);
-    }
-
-    public void updateHazardData(HazardData data) {
-        if (isWaxed()) {
-            return;
-        }
-        if (!getHazardData().equals(data)) {
-            getDataTracker().set(HAZARD_DATA, data);
-            playSound(SoundEvents.BLOCK_SMITHING_TABLE_USE, 1.0f, 1.0f);
         }
     }
 
-    @Nullable
     @Override
-    public ItemStack getPickBlockStack() {
-        ItemStack stack = PanelItem.INSTANCE.getDefaultStack();
-        if (!getHazardData().isEmpty()) {
-            stack.getOrCreateNbt().put("HazardData", getHazardData().toNbt());
-        }
-        return stack;
+    public void readEntityFromNBT(NBTTagCompound nbt) {
+        super.readEntityFromNBT(nbt);
+        HazardData.fromNbt(nbt.getCompoundTag("HazardData")).writeDataWatcher(getDataWatcher());
+        getDataWatcher().updateObject(7, nbt.getBoolean("Waxed") ? 1 : 0);
+        getDataWatcher().setObjectWatched(7);
     }
 
     @Override
-    public void writeCustomDataToNbt(NbtCompound nbt) {
-        super.writeCustomDataToNbt(nbt);
-        nbt.putBoolean("Waxed", isWaxed());
-        nbt.put("HazardData", getHazardData().toNbt());
-        nbt.putByte("Facing", (byte) facing.getId());
-    }
-
-    @Override
-    public void readCustomDataFromNbt(NbtCompound nbt) {
-        super.readCustomDataFromNbt(nbt);
-        getDataTracker().set(WAXED, nbt.getBoolean("Waxed"));
-        getDataTracker().set(HAZARD_DATA, HazardData.fromNbt(nbt.getCompound("HazardData")));
-        facing = Direction.byId(nbt.getByte("Facing"));
-    }
-
-    public static void register() {
-        ENTITY_TYPE = Registry.register(
-                Registry.ENTITY_TYPE,
-                HDiamond.id("panel"),
-                FabricEntityTypeBuilder.<PanelEntity>create(SpawnGroup.MISC, PanelEntity::new)
-                        .dimensions(EntityDimensions.fixed(1.0f, 1.0f))
-                        .trackedUpdateRate(Integer.MAX_VALUE)
-                        .build()
-        );
+    public void writeEntityToNBT(NBTTagCompound nbt) {
+        super.writeEntityToNBT(nbt);
+        nbt.setTag("HazardData", getHazardData(ForgeDirection.UNKNOWN).toNbt());
     }
 }

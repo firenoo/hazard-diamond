@@ -1,148 +1,126 @@
 package com.acikek.hdiamond.client.screen;
 
 import com.acikek.hdiamond.HDiamond;
-import com.acikek.hdiamond.api.HazardDiamondAPI;
-import com.acikek.hdiamond.api.event.HazardScreenEdited;
+import com.acikek.hdiamond.client.HDiamondClient;
 import com.acikek.hdiamond.core.HazardData;
-import com.acikek.hdiamond.core.quadrant.QuadrantValue;
-import com.acikek.hdiamond.core.section.DiamondSection;
 import com.acikek.hdiamond.core.pictogram.Pictogram;
+import com.acikek.hdiamond.core.quadrant.QuadrantValue;
 import com.acikek.hdiamond.core.quadrant.SpecificHazard;
-import com.acikek.hdiamond.entity.PanelEntity;
-import com.acikek.hdiamond.network.HDNetworking;
-import com.mojang.blaze3d.systems.RenderSystem;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.gui.screen.Screen;
-import net.minecraft.client.render.GameRenderer;
-import net.minecraft.client.util.math.MatrixStack;
-import net.minecraft.text.Text;
-import net.minecraft.util.Identifier;
+import com.acikek.hdiamond.core.section.DiamondSection;
+import com.acikek.hdiamond.network.C2SUpdatePanelData;
+import com.acikek.hdiamond.network.NetHandler;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.GuiScreen;
+import net.minecraft.util.IChatComponent;
+import org.lwjgl.opengl.GL11;
 
-public class HazardScreen extends Screen {
+import java.util.List;
 
-    public static final Identifier TEXTURE = HDiamond.id("textures/gui/hazards.png");
+/**
+ * Base class for the gui editing a hazard diamond.
+ */
+public class HazardScreen extends GuiScreen {
 
-    public int x;
-    public int y;
-    public boolean movedCursor = false;
+    protected int x;
+    protected int y;
+    protected boolean movedCursor = false;
+    protected boolean isEditable;
+    protected HazardData originalData;
+    protected HazardData newData;
 
-    public PanelEntity entity;
-    public boolean isEditable;
-    public HazardData originalData;
-    public Identifier id;
-    public HazardData data;
-
-    HazardScreen(PanelEntity entity, boolean isEditable, HazardData originalData, Identifier id, HazardData data) {
-        super(Text.translatable("gui.hdiamond.hazard_screen.title"));
-        this.entity = entity;
+    public HazardScreen(HazardData data, boolean isEditable) {
+        this.originalData = data;
+        this.newData = data.copy();
         this.isEditable = isEditable;
-        this.originalData = originalData;
-        this.id = id;
-        this.data = data;
     }
 
-    public HazardScreen(PanelEntity entity) {
-        this(entity, !entity.isWaxed(), null, null, entity.getHazardData().copy());
+    public void addQuadrant(QuadrantValue<?> quadrant, int id, int halfX, int halfY) {
+        buttonList.add(new DiamondWidget.Quadrant(this, quadrant, id, halfX, halfY, 62));
     }
 
-    public HazardScreen(HazardData data) {
-        this(null, false, null, null, data);
-    }
-
-    public HazardScreen(HazardData data, Identifier id) {
-        this(null, true, data.copy(), id, data);
-    }
-
-    public void addQuadrant(QuadrantValue<?> quadrant, int halfX, int halfY) {
-        addDrawableChild(new DiamondWidget.Quadrant(this, quadrant, halfX, halfY, 62));
-    }
-
-    public void addPictogram(Pictogram pictogram, int halfX, int halfY) {
-        addDrawableChild(new DiamondWidget.PictogramLabel(this, pictogram, halfX, halfY, 66));
+    public void addPictogram(Pictogram pictogram, int id, int halfX, int halfY) {
+        buttonList.add(new DiamondWidget.PictogramLabel(this, pictogram, id, halfX, halfY, 66));
     }
 
     @Override
-    protected void init() {
+    public void initGui() {
         this.x = (this.width - 128) / 4;
         this.y = (this.height) / 4 - 2;
-        addQuadrant(data.diamond().fire(), x + 16, y - 50);
-        addQuadrant(data.diamond().health(), x, y - 34);
-        addQuadrant(data.diamond().reactivity(), x + 32, y - 34);
-        addQuadrant(data.diamond().specific(), x + 16, y - 18);
+        addQuadrant(newData.diamond().fire(), 0, x + 16, y - 50);
+        addQuadrant(newData.diamond().health(), 1, x, y - 34);
+        addQuadrant(newData.diamond().reactivity(), 2, x + 32, y - 34);
+        addQuadrant(newData.diamond().specific(), 3, x + 16, y - 18);
         for (int i = 0; i < Pictogram.values().length; i++) {
             Pictogram pictogram = Pictogram.values()[i];
-            addPictogram(pictogram, x - 57 + i * 18, y + 3 + (i % 2 == 0 ? 18 : 0));
+            addPictogram(pictogram, 4 + i, x - 57 + i * 18, y + 3 + (i % 2 == 0 ? 18 : 0));
         }
+    }
+
+    public void renderTooltip(List<IChatComponent> text, int x, int y) {
+        drawHoveringText(text, x, y, fontRendererObj);
     }
 
     public static void setTexture() {
-        RenderSystem.setShader(GameRenderer::getPositionTexShader);
-        RenderSystem.setShaderColor(1.0f, 1.0f, 1.0f, 1.0f);
-        RenderSystem.setShaderTexture(0, TEXTURE);
+        GL11.glColor4f(1.0f, 1.0f, 1.0f, 1.0f);
+        Minecraft.getMinecraft().renderEngine.bindTexture(HDiamondClient.WIDGETS);
     }
 
-    public void renderPanel(MatrixStack matrices) {
-        drawTexture(matrices, x, y - 50, 0, 0, 64, 64);
+    public void renderPanel() {
+        drawTexturedModalRect(x, y - 50, 0, 0, 64, 64);
     }
 
-    public void renderElement(MatrixStack matrices, DiamondSection<?> element, int x, int y) {
-        var texture = element.getTexture();
-        drawTexture(matrices, x, y, texture.u(), texture.v(), texture.width(), texture.height());
+    public void renderElement(DiamondSection<?> element, int x, int y) {
+        DiamondSection.Texture texture = element.getTexture();
+        drawTexturedModalRect(x, y, texture.u(), texture.v(), texture.width(), texture.height());
     }
 
-    public void renderQuadrants(MatrixStack matrices) {
-        renderElement(matrices, data.diamond().fire().get(), x + 26, y - 41);
-        renderElement(matrices, data.diamond().health().get(), x + 10, y - 25);
-        renderElement(matrices, data.diamond().reactivity().get(), x + 42, y - 25);
-        SpecificHazard specific = data.diamond().specific().get();
+    public void renderQuadrants() {
+        renderElement(newData.diamond().fire().get(), x + 26, y - 41);
+        renderElement(newData.diamond().health().get(), x + 10, y - 25);
+        renderElement(newData.diamond().reactivity().get(), x + 42, y - 25);
+        SpecificHazard specific = newData.diamond().specific().get();
         if (specific != SpecificHazard.NONE) {
-            var rad = specific == SpecificHazard.RADIOACTIVE;
-            renderElement(matrices, specific, x + 23 - (rad ? 1 : 0), y - 9 - (rad ? 2 : 0));
+            boolean rad = specific == SpecificHazard.RADIOACTIVE;
+            renderElement(specific, x + 23 - (rad ? 1 : 0), y - 9 - (rad ? 2 : 0));
         }
     }
 
-    public void renderPictogram(MatrixStack matrices, Pictogram pictogram, int x, int y) {
-        float color = data.pictograms().contains(pictogram) ? 1.0f : 0.5f;
-        RenderSystem.setShaderColor(color, color, color, 1.0f);
-        renderElement(matrices, pictogram, x, y);
+    public void renderPictogram(Pictogram pictogram, int x, int y) {
+        float color = newData.pictograms().contains(pictogram) ? 1.0f : 0.5f;
+        GL11.glColor4f(color, color, color, 1.0f);
+        renderElement(pictogram, x, y);
     }
 
-    public void renderPictograms(MatrixStack matrices) {
+    public void renderPictograms() {
         for (int i = 0; i < Pictogram.values().length; i++) {
             Pictogram pictogram = Pictogram.values()[i];
-            renderPictogram(matrices, pictogram, x - 56 + i * 18, y + 4 + (i % 2 == 0 ? 18 : 0));
+            renderPictogram(pictogram, x - 56 + i * 18, y + 4 + (i % 2 == 0 ? 18 : 0));
         }
     }
 
     @Override
-    public void render(MatrixStack matrices, int mouseX, int mouseY, float delta) {
-        renderBackground(matrices);
+    public void drawScreen(int mouseX, int mouseY, float partialTicks) {
+        drawBackground(0);
         setTexture();
-        matrices.push();
-        matrices.scale(2.0f, 2.0f, 1.0f);
-        renderPanel(matrices);
-        renderQuadrants(matrices);
-        renderPictograms(matrices);
-        matrices.pop();
-        super.render(matrices, mouseX, mouseY, delta);
+        GL11.glPushMatrix();
+        GL11.glScalef(2.0f, 2.0f, 2.0f);
+        renderPanel();
+        renderQuadrants();
+        renderPictograms();
+        GL11.glPopMatrix();
+        super.drawScreen(mouseX, mouseY, partialTicks);
     }
 
     @Override
-    public void mouseMoved(double mouseX, double mouseY) {
-        super.mouseMoved(mouseX, mouseY);
+    protected void mouseMovedOrUp(int mouseX, int mouseY, int state) {
+        super.mouseMovedOrUp(mouseX, mouseY, state);
         if (!movedCursor) {
             movedCursor = true;
         }
     }
 
     @Override
-    public void close() {
-        if (entity != null) {
-            HDNetworking.c2sUpdatePanelData(entity, data);
-        }
-        else if (originalData != null) {
-            HazardScreenEdited.EVENT.invoker().onEdit(MinecraftClient.getInstance().player, originalData, data, id);
-        }
-        super.close();
+    public void onGuiClosed() {
+        NetHandler.sendToServer(new C2SUpdatePanelData(newData));
     }
 }

@@ -1,70 +1,105 @@
 package com.acikek.hdiamond.core;
 
-import com.acikek.hdiamond.core.quadrant.*;
-import com.acikek.hdiamond.core.section.QuadrantSection;
-import com.google.gson.JsonObject;
-import net.minecraft.nbt.NbtCompound;
-import net.minecraft.network.PacketByteBuf;
+import com.acikek.hdiamond.core.quadrant.FireHazard;
+import com.acikek.hdiamond.core.quadrant.HealthHazard;
+import com.acikek.hdiamond.core.quadrant.QuadrantValue;
+import com.acikek.hdiamond.core.quadrant.Reactivity;
+import com.acikek.hdiamond.core.quadrant.SpecificHazard;
+import io.netty.buffer.ByteBuf;
+import net.minecraft.entity.DataWatcher;
+import net.minecraft.nbt.NBTTagCompound;
 
-public record HazardDiamond(
-        QuadrantValue<FireHazard> fire,
-        QuadrantValue<HealthHazard> health,
-        QuadrantValue<Reactivity> reactivity,
-        QuadrantValue<SpecificHazard> specific) {
+import java.util.Arrays;
+import java.util.List;
 
-    public static HazardDiamond empty() {
-        return new HazardDiamond(FireHazard.NONFLAMMABLE, HealthHazard.NORMAL, Reactivity.STABLE, SpecificHazard.NONE);
+public class HazardDiamond {
+
+    private final QuadrantValue<FireHazard> fire;
+    private final QuadrantValue<HealthHazard> health;
+    private final QuadrantValue<Reactivity> reactivity;
+    private final QuadrantValue<SpecificHazard> specific;
+
+    public HazardDiamond(QuadrantValue<FireHazard> fire, QuadrantValue<HealthHazard> health, QuadrantValue<Reactivity> reactivity, QuadrantValue<SpecificHazard> specific) {
+        this.fire = fire;
+        this.health = health;
+        this.reactivity = reactivity;
+        this.specific = specific;
+    }
+
+    public HazardDiamond() {
+        this(FireHazard.NONFLAMMABLE, HealthHazard.NORMAL, Reactivity.STABLE, SpecificHazard.NONE);
     }
 
     public HazardDiamond(FireHazard fire, HealthHazard health, Reactivity reactivity, SpecificHazard specific) {
         this(
-                new QuadrantValue<>(FireHazard.class, fire),
-                new QuadrantValue<>(HealthHazard.class, health),
-                new QuadrantValue<>(Reactivity.class, reactivity),
-                new QuadrantValue<>(SpecificHazard.class, specific)
+                new QuadrantValue<>(fire),
+                new QuadrantValue<>(health),
+                new QuadrantValue<>(reactivity),
+                new QuadrantValue<>(specific)
         );
     }
 
-    public static HazardDiamond fromJson(JsonObject obj) {
-        var fire = QuadrantSection.fromJson(obj.get("fire"), FireHazard.class);
-        var health = QuadrantSection.fromJson(obj.get("health"), HealthHazard.class);
-        var reactivity = QuadrantSection.fromJson(obj.get("reactivity"), Reactivity.class);
-        var specific = obj.has("specific")
-                ? QuadrantSection.fromJson(obj.get("specific"), SpecificHazard.class)
-                : SpecificHazard.NONE;
-        return new HazardDiamond(fire, health, reactivity, specific);
-    }
-
-    public NbtCompound toNbt() {
-        NbtCompound nbt = new NbtCompound();
-        nbt.putInt("Fire", fire.get().ordinal());
-        nbt.putInt("Health", health.get().ordinal());
-        nbt.putInt("Reactivity", reactivity.get().ordinal());
-        nbt.putInt("Specific", specific.get().ordinal());
+    public NBTTagCompound toNbt() {
+        NBTTagCompound nbt = new NBTTagCompound();
+        nbt.setInteger("Fire", fire.get().ordinal());
+        nbt.setInteger("Health", health.get().ordinal());
+        nbt.setInteger("Reactivity", reactivity.get().ordinal());
+        nbt.setInteger("Specific", specific.get().ordinal());
         return nbt;
     }
 
-    public static HazardDiamond fromNbt(NbtCompound nbt) {
-        var fire = FireHazard.values()[nbt.getInt("Fire")];
-        var health = HealthHazard.values()[nbt.getInt("Health")];
-        var reactivity = Reactivity.values()[nbt.getInt("Reactivity")];
-        var specific = SpecificHazard.values()[nbt.getInt("Specific")];
+    public static HazardDiamond fromNbt(NBTTagCompound nbt) {
+        FireHazard fire = FireHazard.values()[nbt.getInteger("Fire")];
+        HealthHazard health = HealthHazard.values()[nbt.getInteger("Health")];
+        Reactivity reactivity = Reactivity.values()[nbt.getInteger("Reactivity")];
+        SpecificHazard specific = SpecificHazard.values()[nbt.getInteger("Specific")];
         return new HazardDiamond(fire, health, reactivity, specific);
     }
 
-    public void write(PacketByteBuf buf) {
-        buf.writeEnumConstant(fire.get());
-        buf.writeEnumConstant(health.get());
-        buf.writeEnumConstant(reactivity.get());
-        buf.writeEnumConstant(specific.get());
+    public List<QuadrantValue<?>> getQuadrants() {
+        return Arrays.asList(fire, health, reactivity, specific);
     }
 
-    public static HazardDiamond read(PacketByteBuf buf) {
-        var fire = buf.readEnumConstant(FireHazard.class);
-        var health = buf.readEnumConstant(HealthHazard.class);
-        var reactivity = buf.readEnumConstant(Reactivity.class);
-        var specific = buf.readEnumConstant(SpecificHazard.class);
-        return new HazardDiamond(fire, health, reactivity, specific);
+    public void write(ByteBuf buf) {
+        for (QuadrantValue<?> quadrant : getQuadrants()) {
+            buf.writeInt(quadrant.get().ordinal());
+        }
+    }
+
+    public static HazardDiamond fromIndices(int fire, int health, int reactivity, int specific) {
+        FireHazard fireValue = FireHazard.values()[fire];
+        HealthHazard healthValue = HealthHazard.values()[health];
+        Reactivity reactivityValue = Reactivity.values()[reactivity];
+        SpecificHazard specificValue = SpecificHazard.values()[specific];
+        return new HazardDiamond(fireValue, healthValue, reactivityValue, specificValue);
+    }
+
+    public static HazardDiamond read(ByteBuf buf) {
+        return fromIndices(buf.readInt(), buf.readInt(), buf.readInt(), buf.readInt());
+    }
+
+    public static void initDataWatcher(DataWatcher watcher) {
+        List<QuadrantValue<?>> quadrants = new HazardDiamond().getQuadrants();
+        for (int i = 0; i < quadrants.size(); i++) {
+            watcher.addObject(2 + i, quadrants.get(i).get().ordinal());
+        }
+    }
+
+    public void writeDataWatcher(DataWatcher watcher) {
+        List<QuadrantValue<?>> quadrants = getQuadrants();
+        for (int i = 0; i < quadrants.size(); i++) {
+            watcher.updateObject(2 + i, quadrants.get(i).get().ordinal());
+            watcher.setObjectWatched(2 + i);
+        }
+    }
+
+    public static HazardDiamond readDataWatcher(DataWatcher watcher) {
+        return fromIndices(
+            watcher.getWatchableObjectInt(2),
+            watcher.getWatchableObjectInt(3),
+            watcher.getWatchableObjectInt(4),
+            watcher.getWatchableObjectInt(5)
+        );
     }
 
     public HazardDiamond copy() {
@@ -72,7 +107,23 @@ public record HazardDiamond(
     }
 
     public boolean isEmpty() {
-        return fire.isEmpty() && health().isEmpty() && reactivity().isEmpty() && specific.isEmpty();
+        return fire.isEmpty() && health.isEmpty() && reactivity.isEmpty() && specific.isEmpty();
+    }
+
+    public QuadrantValue<FireHazard> fire() {
+        return fire;
+    }
+
+    public QuadrantValue<HealthHazard> health() {
+        return health;
+    }
+
+    public QuadrantValue<Reactivity> reactivity() {
+        return reactivity;
+    }
+
+    public QuadrantValue<SpecificHazard> specific() {
+        return specific;
     }
 
     @Override

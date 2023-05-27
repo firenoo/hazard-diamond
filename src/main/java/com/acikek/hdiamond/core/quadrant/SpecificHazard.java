@@ -1,9 +1,10 @@
 package com.acikek.hdiamond.core.quadrant;
 
 import com.acikek.hdiamond.core.section.QuadrantSection;
-import net.minecraft.text.MutableText;
-import net.minecraft.text.Text;
-import net.minecraft.util.Formatting;
+import net.minecraft.util.ChatComponentText;
+import net.minecraft.util.ChatStyle;
+import net.minecraft.util.EnumChatFormatting;
+import net.minecraft.util.IChatComponent;
 
 /**
  * Describes special hazards pertaining to a material.
@@ -49,30 +50,48 @@ public enum SpecificHazard implements QuadrantSection<SpecificHazard> {
     }
 
     @Override
-    public Formatting getTypeColor() {
-        return Formatting.WHITE;
+    public EnumChatFormatting getTypeColor() {
+        return EnumChatFormatting.WHITE;
     }
 
     @Override
-    public MutableText getSymbol() {
-        var text = switch (this) {
-            case NONE -> Text.empty();
-            case REACTS_WITH_WATER -> Text.literal("W").formatted(Formatting.STRIKETHROUGH);
-            case OXIDIZER -> Text.literal("OX");
-            case SIMPLE_ASPHYXIANT -> Text.literal("SA");
-            case RADIOACTIVE -> Text.literal("R");
-        };
-        return text.formatted(Formatting.WHITE);
+    public IChatComponent getSymbol() {
+        IChatComponent text;
+        switch (this) {
+            case NONE -> text = new ChatComponentText("");
+            case REACTS_WITH_WATER -> text = new ChatComponentText(EnumChatFormatting.STRIKETHROUGH + "W");
+            case OXIDIZER -> text = new ChatComponentText("OX");
+            case SIMPLE_ASPHYXIANT -> text = new ChatComponentText("SA");
+            case RADIOACTIVE -> text = new ChatComponentText("R");
+            default -> throw new IllegalArgumentException();
+        }
+        return text.setChatStyle(new ChatStyle().setColor(EnumChatFormatting.WHITE));
     }
 
     @Override
-    public Formatting getLevelColor() {
-        return switch (this) {
-            case NONE -> Formatting.GRAY;
-            case REACTS_WITH_WATER -> Formatting.DARK_AQUA;
-            case OXIDIZER -> Formatting.RED;
-            case SIMPLE_ASPHYXIANT -> Formatting.GOLD;
-            case RADIOACTIVE -> Formatting.DARK_GREEN;
-        };
+    public EnumChatFormatting getLevelColor() {
+        switch (this) {
+            case NONE -> {
+                return EnumChatFormatting.GRAY;
+            }
+            case REACTS_WITH_WATER -> {
+                return EnumChatFormatting.DARK_AQUA;
+            }
+            case OXIDIZER -> {
+                return EnumChatFormatting.RED;
+            }
+            case SIMPLE_ASPHYXIANT -> {
+                return EnumChatFormatting.GOLD;
+            }
+            case RADIOACTIVE -> {
+                return EnumChatFormatting.DARK_GREEN;
+            }
+        }
+        throw new IllegalArgumentException();
+    }
+
+    @Override
+    public SpecificHazard scroll(boolean reverse) {
+        return null;
     }
 }

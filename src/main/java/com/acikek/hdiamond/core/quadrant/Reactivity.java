@@ -1,7 +1,7 @@
 package com.acikek.hdiamond.core.quadrant;
 
 import com.acikek.hdiamond.core.section.QuadrantSection;
-import net.minecraft.util.Formatting;
+import net.minecraft.util.EnumChatFormatting;
 
 /**
  * Describes the susceptibiltiy of a material to release energy.<br>
@@ -47,7 +47,12 @@ public enum Reactivity implements QuadrantSection<Reactivity> {
     }
 
     @Override
-    public Formatting getTypeColor() {
-        return Formatting.YELLOW;
+    public EnumChatFormatting getTypeColor() {
+        return EnumChatFormatting.YELLOW;
+    }
+
+    @Override
+    public Reactivity scroll(boolean reverse) {
+        return null;
     }
 }

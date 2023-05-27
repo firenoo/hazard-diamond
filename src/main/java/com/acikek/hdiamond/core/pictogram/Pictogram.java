@@ -1,12 +1,9 @@
 package com.acikek.hdiamond.core.pictogram;
 
 import com.acikek.hdiamond.core.section.DiamondSection;
-import com.google.gson.JsonObject;
-import com.google.gson.JsonParseException;
-import net.minecraft.nbt.NbtCompound;
-import net.minecraft.network.PacketByteBuf;
-import net.minecraft.util.JsonHelper;
-import org.apache.commons.lang3.EnumUtils;
+import io.netty.buffer.ByteBuf;
+import net.minecraft.entity.DataWatcher;
+import net.minecraft.nbt.NBTTagCompound;
 
 import java.util.*;
 import java.util.stream.Collectors;
@@ -40,38 +37,59 @@ public enum Pictogram implements DiamondSection<Pictogram> {
         return "ghs.hdiamond";
     }
 
-    public static Set<Pictogram> fromJson(JsonObject obj) {
-        Set<Pictogram> result = new HashSet<>();
-        for (var pictogram : JsonHelper.getArray(obj, "pictograms")) {
-            String str = pictogram.getAsString();
-            Pictogram p = EnumUtils.getEnumIgnoreCase(Pictogram.class, str);
-            if (p == null) {
-                throw new JsonParseException("unrecognized pictogram '" + str + "'");
-            }
-            result.add(p);
+    public static void writeNbt(NBTTagCompound nbt, Set<Pictogram> pictograms) {
+        int[] values = new int[pictograms.size()];
+        int i = 0;
+        for (Pictogram p : pictograms) {
+            values[i] = p.ordinal();
+            ++i;
         }
-        return result;
+        nbt.setIntArray("Pictograms", values);
     }
 
-    public static void writeNbt(NbtCompound nbt, Set<Pictogram> pictograms) {
-        var ints = pictograms.stream()
-                .map(Enum::ordinal)
-                .sorted()
-                .toList();
-        nbt.putIntArray("Pictograms", ints);
-    }
-
-    public static Set<Pictogram> readNbt(NbtCompound nbt) {
+    public static Set<Pictogram> readNbt(NBTTagCompound nbt) {
         return Arrays.stream(nbt.getIntArray("Pictograms"))
                 .mapToObj(index -> Pictogram.values()[index])
                 .collect(Collectors.toSet());
     }
 
-    public static void write(PacketByteBuf buf, Set<Pictogram> pictograms) {
-        buf.writeCollection(pictograms, PacketByteBuf::writeEnumConstant);
+    public static void write(ByteBuf buf, Set<Pictogram> pictograms) {
+        buf.writeInt(pictograms.size());
+        for (Pictogram pictogram : pictograms) {
+            buf.writeInt(pictogram.ordinal());
+        }
     }
 
-    public static Set<Pictogram> read(PacketByteBuf buf) {
-        return buf.readCollection(HashSet::new, b -> b.readEnumConstant(Pictogram.class));
+    public static Set<Pictogram> read(ByteBuf buf) {
+        Set<Pictogram> result = new HashSet<>();
+        int size = buf.readInt();
+        for (int i = 0; i < size; i++) {
+            result.add(Pictogram.values()[buf.readInt()]);
+        }
+        return result;
+    }
+
+    public static void initDataWatcher(DataWatcher watcher) {
+        watcher.addObject(6, 0b0);
+    }
+
+    public static void writeDataWatcher(DataWatcher watcher, Set<Pictogram> pictograms) {
+        int result = 0b0;
+        for (Pictogram pictogram : pictograms) {
+            result += 0b1 << pictogram.ordinal();
+        }
+        watcher.updateObject(6, result);
+    }
+
+    public static Set<Pictogram> readDataWatcher(DataWatcher watcher) {
+        Set<Pictogram> result = new HashSet<>();
+        int data = watcher.getWatchableObjectInt(6);
+        for (int i = 0; i < Pictogram.values().length; i++) {
+            int value = data & (0b1 << i);
+            if (value == 1) {
+                result.add(Pictogram.values()[i]);
+            }
+        }
+        return result;
     }
 }

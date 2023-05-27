@@ -3,25 +3,26 @@ package com.acikek.hdiamond.client.screen;
 import com.acikek.hdiamond.core.pictogram.Pictogram;
 import com.acikek.hdiamond.core.quadrant.QuadrantValue;
 import com.acikek.hdiamond.core.section.DiamondSection;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.gui.widget.ButtonWidget;
-import net.minecraft.client.sound.PositionedSoundInstance;
-import net.minecraft.client.util.math.MatrixStack;
-import net.minecraft.sound.SoundEvents;
-import net.minecraft.text.Text;
-import net.minecraft.util.Formatting;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.audio.PositionedSoundRecord;
+import net.minecraft.client.gui.GuiButton;
+import net.minecraft.util.ChatStyle;
+import net.minecraft.util.EnumChatFormatting;
+import net.minecraft.util.IChatComponent;
+import net.minecraft.util.ResourceLocation;
 
 import java.awt.*;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 
-public abstract class DiamondWidget extends ButtonWidget {
+public abstract class DiamondWidget extends GuiButton {
 
     public HazardScreen screen;
     public Polygon diamond;
 
-    public DiamondWidget(HazardScreen screen, int x, int y, int width, int height, Text message, PressAction action) {
-        super(x, y, width, height, message, action);
+    public DiamondWidget(HazardScreen screen, int id, int x, int y, int width, int height, IChatComponent message) {
+        super(id, x, y, width, height, message.getFormattedText());
         this.screen = screen;
         this.diamond = new Polygon(
                 new int[] { x, x + width / 2, x + width, x + width / 2 },
@@ -30,67 +31,72 @@ public abstract class DiamondWidget extends ButtonWidget {
         );
     }
 
-    public DiamondWidget(HazardScreen screen, int halfX, int halfY, int size, Text message, PressAction action) {
-        this(screen, (halfX * 2) + 1, (halfY * 2) + 1, size, size, message, action);
+    public DiamondWidget(HazardScreen screen, int id, int halfX, int halfY, int size, IChatComponent message) {
+        this(screen, id, (halfX * 2) + 1, (halfY * 2) + 1, size, size, message);
     }
 
     @Override
-    public void render(MatrixStack matrices, int mouseX, int mouseY, float delta) {
-        hovered = isMouseOver(mouseX, mouseY);
-        if (hovered) {
-            renderTooltip(matrices, mouseX, mouseY);
+    public void drawButton(Minecraft mc, int mouseX, int mouseY) {
+        this.field_146123_n = diamond.contains(mouseX, mouseY);
+        if (this.field_146123_n) {
+            renderTooltip(mouseX, mouseY);
         }
     }
 
-    public void renderDiamondTooltip(DiamondSection<?> section, MatrixStack matrices, int mouseX, int mouseY, boolean off) {
+    public abstract void renderTooltip(int mouseX, int mouseY);
+
+    public void renderDiamondTooltip(DiamondSection<?> section, int mouseX, int mouseY, boolean off) {
         if (!screen.movedCursor) {
             return;
         }
-        List<Text> tooltip = new ArrayList<>();
-        tooltip.add(section.getTitle().styled(style -> off ? style.withFormatting(Formatting.GRAY) : style));
-        tooltip.add(section.getDescription().formatted(off ? Formatting.DARK_GRAY : Formatting.GRAY));
-        screen.renderTooltip(matrices, tooltip, mouseX, mouseY);
+        List<IChatComponent> tooltip = new ArrayList<>();
+        tooltip.add(section.getTitle().setChatStyle(section.getTitle().getChatStyle().setColor(off ? EnumChatFormatting.GRAY : EnumChatFormatting.WHITE)));
+        tooltip.add(section.getDescription().setChatStyle(new ChatStyle().setColor(off ? EnumChatFormatting.DARK_GRAY : EnumChatFormatting.GRAY)));
+        screen.renderTooltip(tooltip, mouseX, mouseY);
     }
 
     @Override
-    public boolean isMouseOver(double mouseX, double mouseY) {
-        return diamond.contains(mouseX, mouseY);
-    }
-
-    @Override
-    public boolean mouseClicked(double mouseX, double mouseY, int button) {
-        if (hovered) {
-            super.onClick(mouseX, mouseY);
+    public int getHoverState(boolean mouseOver) {
+        if (!screen.isEditable) {
+            return 0;
         }
-        return hovered;
+        return mouseOver ? 1 : 2;
     }
 
     @Override
-    public void onClick(double mouseX, double mouseY) {
-        // Empty
+    public boolean mousePressed(Minecraft mc, int mouseX, int mouseY) {
+        if (this.field_146123_n) {
+            super.mousePressed(mc, mouseX, mouseY);
+        }
+        return this.field_146123_n;
     }
 
     public static void playSound() {
-        MinecraftClient.getInstance().getSoundManager().play(PositionedSoundInstance.master(SoundEvents.UI_BUTTON_CLICK, 1.0f));
+        Minecraft.getMinecraft().getSoundHandler().playSound(PositionedSoundRecord.func_147674_a(new ResourceLocation("gui.button.press"), 1.0f));
     }
 
     public static class Quadrant extends DiamondWidget {
 
         public QuadrantValue<?> quadrant;
 
-        public Quadrant(HazardScreen screen, QuadrantValue<?> quadrant, int halfX, int halfY, int size) {
-            super(screen, halfX, halfY, size, quadrant.get().getTitle(), button -> {
-                if (screen.isEditable) {
-                    quadrant.scroll();
-                    playSound();
-                }
-            });
+        public Quadrant(HazardScreen screen, QuadrantValue<?> quadrant, int id, int halfX, int halfY, int size) {
+            super(screen, id, halfX, halfY, size, quadrant.get().getTitle());
             this.quadrant = quadrant;
         }
 
         @Override
-        public void renderTooltip(MatrixStack matrices, int mouseX, int mouseY) {
-            renderDiamondTooltip(quadrant.get(), matrices, mouseX, mouseY, false);
+        public boolean mousePressed(Minecraft mc, int mouseX, int mouseY) {
+            if (!screen.isEditable) {
+                return false;
+            }
+            quadrant.scroll();
+            playSound();
+            return super.mousePressed(mc, mouseX, mouseY);
+        }
+
+        @Override
+        public void renderTooltip(int mouseX, int mouseY) {
+            renderDiamondTooltip(quadrant.get(), mouseX, mouseY, false);
         }
     }
 
@@ -98,26 +104,30 @@ public abstract class DiamondWidget extends ButtonWidget {
 
         public Pictogram pictogram;
 
-        public PictogramLabel(HazardScreen screen, Pictogram pictogram, int halfX, int halfY, int size) {
-            super(screen, halfX, halfY, size, pictogram.getTitle(), button -> {
-                if (!screen.isEditable) {
-                    return;
-                }
-                var pictograms = screen.data.pictograms();
-                if (pictograms.contains(pictogram)) {
-                    pictograms.remove(pictogram);
-                }
-                else {
-                    pictograms.add(pictogram);
-                }
-                playSound();
-            });
+        public PictogramLabel(HazardScreen screen, Pictogram pictogram, int id, int halfX, int halfY, int size) {
+            super(screen, id, halfX, halfY, size, pictogram.getTitle());
             this.pictogram = pictogram;
         }
 
         @Override
-        public void renderTooltip(MatrixStack matrices, int mouseX, int mouseY) {
-            renderDiamondTooltip(pictogram, matrices, mouseX, mouseY, !screen.data.pictograms().contains(pictogram));
+        public boolean mousePressed(Minecraft mc, int mouseX, int mouseY) {
+            if (!screen.isEditable) {
+                return false;
+            }
+            Set<Pictogram> pictograms = screen.newData.pictograms();
+            if (pictograms.contains(pictogram)) {
+                pictograms.remove(pictogram);
+            }
+            else {
+                pictograms.add(pictogram);
+            }
+            playSound();
+            return super.mousePressed(mc, mouseX, mouseY);
+        }
+
+        @Override
+        public void renderTooltip(int mouseX, int mouseY) {
+            renderDiamondTooltip(pictogram, mouseX, mouseY, !screen.newData.pictograms().contains(pictogram));
         }
     }
 }
